@@ -12,6 +12,7 @@
 
 //Information for current location and time
 struct information {
+  int readingID;
   int ID ;
   double curr_Lat;
   double curr_Lon;
@@ -22,6 +23,24 @@ struct information {
   uint32_t curr_date;
   int curr_battery;
 } curr_info;
+
+//Counter used to say what reading we are on. This will exceed the NumofReadings and overwrite the oldest reading. 0 becomes 51 etc. 
+int readingCounter = 0; 
+int posofManifestDataWriter = 0;
+
+//3d table for all the information that I know (AKA Manifest) tablenamedefinedas[rows][col][depth]
+#define NumofNodes 2     //Starting with 2 nodes. this can be a variable for later development. 
+#define NumofReadings 50 //Start with last 50 readings
+#define NumofCol 10      //See struct above
+
+//Only this nodes readings history 
+information thisNodesManifest[NumofReadings];
+
+//need 2 (depth)  of the things above and call it manifest
+struct manifestType
+{
+  information thisNodesManifest[NumofReadings];
+}manifest[NumofNodes];
 
 //ID for this node
 int curr_ID = 1;
@@ -82,7 +101,7 @@ void loop()
   SerialUSB.println("Sending message");
 
   //Send a message to the other radio
-  uint8_t toSend[] = "Hi there!";
+  uint8_t toSend[] = "Hi there! I am ready to recieve your manifest"; 
   //sprintf(toSend, "Hi, my counter is: %d", packetCounter++);
   rf95.send(toSend, sizeof(toSend));
   rf95.waitPacketSent();
@@ -104,20 +123,35 @@ void loop()
       //uint8_t temp[sizeof(curr_info)];
       //temp = (char*)buf;
      //char temp[sizeof(buf)];
-     memcpy(&curr_info, &buf, sizeof(buf));
+
+     //Copy the buffer to the manifest structure. 
+     ////////////changed this////
+     //memcpy(&curr_info, &buf, sizeof(buf));
+
+     manifestType recievedManifest[NumofNodes]; // I shold have recieved a manifest of the 2 nodes. 
+     
+     memcpy(&recievedManifest, &buf, sizeof(buf));
+     
+     
      //SerialUSB.print("temp:"); SerialUSB.print(temp); SerialUSB.println(".");
      //memcpy(curr_info, &temp, sizeof(temp));
     
     //curr_info = (information)&buf;
 
-    SerialUSB.print("0sLAT=");  SerialUSB.println(curr_info.curr_Lat,6);
-    
-    SerialUSB.print("0sLONG="); SerialUSB.println(curr_info.curr_Lon,6);
-    SerialUSB.print("0sALT=");  SerialUSB.println(curr_info.curr_Alt);
-    SerialUSB.print("0sTime="); SerialUSB.print(curr_info.curr_Hour); // Hour (0-23) (u8) 
-    SerialUSB.print(":");     SerialUSB.print(curr_info.curr_min); // Minute (0-59) (u8)
-    SerialUSB.print(":");     SerialUSB.println(curr_info.curr_sec); // Second (0-59) (u8)
-    SerialUSB.print("0sDate="); SerialUSB.println(curr_info.curr_date); // Raw date in DDMMYY format (u32)
+
+    //reconcile my manifest with the one that I just recieved. TODO
+
+    //Print out stuff for debug
+    SerialUSB.print("0sLAT=");  SerialUSB.println(recievedManifest[0].thisNodesManifest[0].curr_Lat,6);
+      
+
+   // SerialUSB.print("0sLAT=");  SerialUSB.println(curr_info.curr_Lat,6);
+    //SerialUSB.print("0sLONG="); SerialUSB.println(curr_info.curr_Lon,6);
+    //SerialUSB.print("0sALT=");  SerialUSB.println(curr_info.curr_Alt);
+    //SerialUSB.print("0sTime="); SerialUSB.print(curr_info.curr_Hour); // Hour (0-23) (u8) 
+    //SerialUSB.print(":");     SerialUSB.print(curr_info.curr_min); // Minute (0-59) (u8)
+    //SerialUSB.print(":");     SerialUSB.println(curr_info.curr_sec); // Second (0-59) (u8)
+    //SerialUSB.print("0sDate="); SerialUSB.println(curr_info.curr_date); // Raw date in DDMMYY format (u32)
 
       //SerialUSB.println((char*)buf);
       //SerialUSBUSB.print(" RSSI: ");

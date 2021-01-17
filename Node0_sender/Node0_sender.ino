@@ -242,10 +242,23 @@ void loop()
 
       //Actualyl send the current info. This will be changed to the manifest.
 
-      // convert curr_info struct to byte array
-      uint8_t buffer[sizeof(curr_info)];
 
-      memcpy(buffer, &curr_info, sizeof(curr_info));
+/////////////////this works before I change it/////////////////////////////
+      // convert curr_info struct to byte array
+      //uint8_t buffer[sizeof(curr_info)];
+
+      //memcpy(buffer, &curr_info, sizeof(curr_info));
+////////////////////////////////
+
+
+
+
+
+
+      // convert curr_info struct to byte array
+      uint8_t buffer[sizeof(manifest)];
+
+      memcpy(buffer, &manifest, sizeof(manifest));
 
       if(sizeof(buffer) < 1)
       {
