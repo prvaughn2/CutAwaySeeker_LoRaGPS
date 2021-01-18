@@ -22,8 +22,8 @@ float battVolts;
 
 //Information for current readings location and time. This is the columns for the manifest.
 struct information {
-  int readingID;
-  int nodeID ;
+  uint16_t readingID;
+  uint8_t nodeID ;
   double curr_Lat;
   double curr_Lon;
   double curr_Alt;
@@ -31,7 +31,7 @@ struct information {
   uint8_t curr_min;
   uint8_t curr_sec;
   uint32_t curr_date;
-  int curr_battery;
+  //int curr_battery;
 } curr_info;
 
 
@@ -42,8 +42,8 @@ int posofManifestDataWriter = 0;
 
 //3d table for all the information that I know (AKA Manifest) tablenamedefinedas[rows][col][depth]
 #define NumofNodes 2     //Starting with 2 nodes. this can be a variable for later development. 
-#define NumofReadings 50 //Start with last 50 readings
-#define NumofCol 10      //See struct above
+#define NumofReadings 3 //Start with last 50 readings
+#define NumofCol 9      //See struct above
 
 //Only this nodes readings history 
 information thisNodesManifest[NumofReadings];
@@ -124,7 +124,7 @@ void loop()
   //There are 4 activities to this project:
   //1. Get my position and update my manifest.
   //2. Relay my manifest to anyone who will listen.
-  //3. Listen for anyone's data.
+  //3. Listen for anyone's transmitting data.
   //4. Relay my updated manifest to the gateway, and thus the server.
 
   //For now, I am doing the first 3 activities with the hope that the gateway will be for future development. 
@@ -154,15 +154,16 @@ void loop()
     //Process the NMEA input
     gps.encode(Serial1.read());
 
-    /*
+    SerialUSB.print("readingCounter=");  SerialUSB.println(readingCounter);
     SerialUSB.print("LAT=");  SerialUSB.println(gps.location.lat(), 6);
+    
     SerialUSB.print("LONG="); SerialUSB.println(gps.location.lng(), 6);
     SerialUSB.print("ALT=");  SerialUSB.println(gps.altitude.meters());
     SerialUSB.print("Time="); SerialUSB.print(gps.time.hour()); // Hour (0-23) (u8) 
     SerialUSB.print(":");     SerialUSB.print(gps.time.minute()); // Minute (0-59) (u8)
     SerialUSB.print(":");     SerialUSB.println(gps.time.second()); // Second (0-59) (u8)
     SerialUSB.print("Date="); SerialUSB.println(gps.date.value()); // Raw date in DDMMYY format (u32)
-    */
+    
     curr_info.readingID = readingCounter;
     curr_info.nodeID    = curr_ID ;
     curr_info.curr_Lat  = gps.location.lat();
@@ -185,15 +186,17 @@ void loop()
     manifest[curr_ID].thisNodesManifest[posofManifestDataWriter].curr_sec  = gps.time.second();
     manifest[curr_ID].thisNodesManifest[posofManifestDataWriter].curr_date = gps.date.value();
     
+    //SerialUSB.print("readingID: "); SerialUSB.println(manifest[curr_ID].thisNodesManifest[posofManifestDataWriter].readingID);
     
-    
+    //SerialUSB.print("posofManifestDataWriter: "); SerialUSB.println(posofManifestDataWriter);
     
     //Update counters
-    readingCounter = readingCounter++; 
-    if (posofManifestDataWriter > NumofReadings)
-      posofManifestDataWriter = posofManifestDataWriter++;
-    else
+    readingCounter = readingCounter + 1;
+    posofManifestDataWriter = posofManifestDataWriter + 1;
+    
+    if (posofManifestDataWriter > NumofReadings){
       posofManifestDataWriter = 0; //manifest is full. delete oldest reading. 
+    }
   
 
 
@@ -265,7 +268,7 @@ void loop()
         SerialUSB.println("buffer is empty"); 
       }
       else
-      SerialUSB.println(sizeof(buffer));
+      SerialUSB.print("buffers size:"); SerialUSB.println(sizeof(buffer));
       
       //SerialUSB.print("buffer:"); 
       //SerialUSB.print(buffer); 

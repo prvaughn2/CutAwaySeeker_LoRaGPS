@@ -12,8 +12,8 @@
 
 //Information for current location and time
 struct information {
-  int readingID;
-  int ID ;
+  uint16_t readingID;
+  uint8_t ID ;
   double curr_Lat;
   double curr_Lon;
   double curr_Alt;
@@ -21,7 +21,7 @@ struct information {
   uint8_t curr_min;
   uint8_t curr_sec;
   uint32_t curr_date;
-  int curr_battery;
+  //int curr_battery;
 } curr_info;
 
 //Counter used to say what reading we are on. This will exceed the NumofReadings and overwrite the oldest reading. 0 becomes 51 etc. 
@@ -30,8 +30,8 @@ int posofManifestDataWriter = 0;
 
 //3d table for all the information that I know (AKA Manifest) tablenamedefinedas[rows][col][depth]
 #define NumofNodes 2     //Starting with 2 nodes. this can be a variable for later development. 
-#define NumofReadings 50 //Start with last 50 readings
-#define NumofCol 10      //See struct above
+#define NumofReadings 3 //Start with last 50 readings
+#define NumofCol 9      //See struct above
 
 //Only this nodes readings history 
 information thisNodesManifest[NumofReadings];
@@ -98,10 +98,20 @@ void setup()
 
 void loop()
 {
+
+    //There are 4 activities to this project:
+  //1. Get my position and update my manifest.
+  //2. Relay my manifest to anyone who will listen.
+  //3. Listen for anyone's data.
+  //4. Relay my updated manifest to the gateway, and thus the server.
+
+  //For now, I am doing the first 3 activities with the hope that the gateway will be for future development.
+
+  
   SerialUSB.println("Sending message");
 
   //Send a message to the other radio
-  uint8_t toSend[] = "Hi there! I am ready to recieve your manifest"; 
+  uint8_t toSend[] = "Hi there! I am ready to recieve your manifest."; 
   //sprintf(toSend, "Hi, my counter is: %d", packetCounter++);
   rf95.send(toSend, sizeof(toSend));
   rf95.waitPacketSent();
@@ -114,7 +124,7 @@ void loop()
   if (rf95.waitAvailableTimeout(2000)) {
     // Should be a reply message for us now
     if (rf95.recv(buf, &len)) {
-      SerialUSB.print("Got reply: ");
+      SerialUSB.print("Got reply size: ");
       SerialUSB.println(sizeof(buf));
       
 //    SerialUSB.println((char*)buf);
@@ -128,7 +138,7 @@ void loop()
      ////////////changed this////
      //memcpy(&curr_info, &buf, sizeof(buf));
 
-     manifestType recievedManifest[NumofNodes]; // I shold have recieved a manifest of the 2 nodes. 
+     manifestType recievedManifest[NumofNodes]; // I should have recieved a manifest of the 2 nodes. 
      
      memcpy(&recievedManifest, &buf, sizeof(buf));
      
@@ -139,10 +149,46 @@ void loop()
     //curr_info = (information)&buf;
 
 
-    //reconcile my manifest with the one that I just recieved. TODO
+    //reconcile my manifest with the one that I just recieved. TODOing...
 
     //Print out stuff for debug
-    SerialUSB.print("0sLAT=");  SerialUSB.println(recievedManifest[0].thisNodesManifest[0].curr_Lat,6);
+    SerialUSB.print("0sReadingID=");  SerialUSB.println(recievedManifest[0].thisNodesManifest[0].readingID);
+
+    ///functionize this later as ReconcileManifest(recievedManifest)!!!!!!!!!!
+
+    //the recieved manifest is depth=2 columns=10 and rows=50max
+
+    //this is a terrible way to do this but it will work for now....
+    //the current manifdest is like this in my head: [depth][cols][rows]
+    //I know is should be row col height. IDC.
+    
+    for(int depth = 0 ; depth < NumofNodes; depth = depth+1)
+    {
+        SerialUSB.print("Pass#:"); SerialUSB.println(depth);
+        //make sure we arent reading our own values. my manifest of me over theirs of me. 
+        if (recievedManifest[depth].thisNodesManifest[0].readingID != curr_ID)
+        {
+            for (int row = 0; row < NumofReadings; row = row + 1)
+            {
+                SerialUSB.print("0sreadingNum=");  SerialUSB.println(recievedManifest[depth].thisNodesManifest[row].readingID);
+                SerialUSB.print("0sLAT=");  SerialUSB.println(recievedManifest[depth].thisNodesManifest[row].curr_Lat,6);
+                SerialUSB.print("0sLONG="); SerialUSB.println(recievedManifest[depth].thisNodesManifest[row].curr_Lon,6);
+                SerialUSB.print("0sALT=");  SerialUSB.println(recievedManifest[depth].thisNodesManifest[row].curr_Alt);
+                SerialUSB.print("0sTime="); SerialUSB.print(recievedManifest[depth].thisNodesManifest[row].curr_Hour); // Hour (0-23) (u8) 
+                SerialUSB.print(":");     SerialUSB.print(recievedManifest[depth].thisNodesManifest[row].curr_min); // Minute (0-59) (u8)
+                SerialUSB.print(":");     SerialUSB.println(recievedManifest[depth].thisNodesManifest[row].curr_sec); // Second (0-59) (u8)
+                SerialUSB.print("0sDate="); SerialUSB.println(recievedManifest[depth].thisNodesManifest[row].curr_date); // Raw date in DDMMYY format (u32) 
+                SerialUSB.println();
+                SerialUSB.println();
+                
+                //add that information to this nodes manifest
+                //TODO
+                
+
+
+            }
+        }
+    }
       
 
    // SerialUSB.print("0sLAT=");  SerialUSB.println(curr_info.curr_Lat,6);
@@ -164,5 +210,5 @@ void loop()
   else {
     SerialUSB.println("No reply, is the receiver running?");
   }
-  delay(500);
+  delay(500);//this will go away later
 }
