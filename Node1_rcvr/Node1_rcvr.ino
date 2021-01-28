@@ -29,7 +29,7 @@ int readingCounter = 0;
 int posofManifestDataWriter = 0;
 
 //3d table for all the information that I know (AKA Manifest) tablenamedefinedas[rows][col][depth]
-#define NumofNodes 2     //Starting with 2 nodes. this can be a variable for later development. 
+#define NumofNodes 2     //Starting with 2 nodes. this can be a variable for later development. This will be the pages of my manifest
 #define NumofReadings 3 //Start with last 50 readings
 #define NumofCol 9      //See struct above
 
@@ -107,11 +107,11 @@ void loop()
 
   //For now, I am doing the first 3 activities with the hope that the gateway will be for future development.
 
-  
-  SerialUSB.println("Sending message");
+  //this is the start of activity '3'
+  SerialUSB.println("Sending i am ready to recieve message.");
 
   //Send a message to the other radio
-  uint8_t toSend[] = "Hi there! I am ready to recieve your manifest."; 
+  uint8_t toSend[] = "Hi there! I am here and ready to recieve your manifest."; 
   //sprintf(toSend, "Hi, my counter is: %d", packetCounter++);
   rf95.send(toSend, sizeof(toSend));
   rf95.waitPacketSent();
@@ -121,7 +121,7 @@ void loop()
   uint8_t buf[sizeof(curr_info)];
   byte len = sizeof(buf);
 
-  if (rf95.waitAvailableTimeout(2000)) {
+  if (rf95.waitAvailableTimeout(20000)) {
     // Should be a reply message for us now
     if (rf95.recv(buf, &len)) {
       SerialUSB.print("Got reply size: ");
@@ -160,12 +160,13 @@ void loop()
 
     //this is a terrible way to do this but it will work for now....
     //the current manifdest is like this in my head: [depth][cols][rows]
-    //I know is should be row col height. IDC.
+    //I know is should be row col height. IDFC.
     
     for(int depth = 0 ; depth < NumofNodes; depth = depth+1)
     {
         SerialUSB.print("Pass#:"); SerialUSB.println(depth);
         //make sure we arent reading our own values. my manifest of me over theirs of me. 
+        //TODO
         if (recievedManifest[depth].thisNodesManifest[0].readingID != curr_ID)
         {
             for (int row = 0; row < NumofReadings; row = row + 1)
