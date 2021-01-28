@@ -210,7 +210,7 @@ void loop()
   }
   //END ACTIVITY 1
 
-    
+    /*
     SerialUSB.print("2LAT=");  SerialUSB.println(curr_info.curr_Lat,6);
     SerialUSB.print("2LONG="); SerialUSB.println(curr_info.curr_Lon,6);
     SerialUSB.print("2ALT=");  SerialUSB.println(curr_info.curr_Alt);
@@ -218,7 +218,7 @@ void loop()
     SerialUSB.print(":");     SerialUSB.print(curr_info.curr_min); // Minute (0-59) (u8)
     SerialUSB.print(":");     SerialUSB.println(curr_info.curr_sec); // Second (0-59) (u8)
     SerialUSB.print("2Date="); SerialUSB.println(curr_info.curr_date); // Raw date in DDMMYY format (u32)
-    
+    */
   
   // START ACTIVITY 2
   //The communication has a few steps: 1 announce that I am about to send. Get a reply that someone is listening (if no response, don't send anything). Send my entire manifest.

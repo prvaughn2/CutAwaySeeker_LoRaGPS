@@ -124,7 +124,7 @@ void loop()
   if (rf95.waitAvailableTimeout(20000)) {
     // Should be a reply message for us now
     if (rf95.recv(buf, &len)) {
-      SerialUSB.print("Got reply size: ");
+      SerialUSB.print("Got a reply!! size: ");
       SerialUSB.println(sizeof(buf));
       
 //    SerialUSB.println((char*)buf);
