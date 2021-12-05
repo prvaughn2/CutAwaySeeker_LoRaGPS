@@ -39,7 +39,8 @@ int readingCounter = 0;
 int posofManifestDataWriter = 0;
 
 //3d table for all the information that I know (AKA Manifest) tablenamedefinedas[rows][col][depth]
-#define NumofNodes 2     //Starting with 2 nodes aka pages for manifest aka devices. this can be a variable for later development. 
+#define initialNumofNodes 2
+int NumofNodes = initialNumofNodes;     //Starting with 2 nodes aka pages for manifest aka devices. this can be a variable for later development. 
 #define NumofReadings 3 //Start with last 10 readings
 #define NumofCol 9      //See struct above
 
@@ -50,10 +51,10 @@ information thisNodesManifest[NumofReadings];
 struct manifestType
 {
   information thisNodesManifest[NumofReadings];
-}manifest[NumofNodes];
+}manifest[initialNumofNodes];
 
  //ID for this node
-int curr_ID = 2;
+int curr_ID = 0;
 
 // We need to provide the RFM95 module's chip select and interrupt pins to the 
 // rf95 instance below.On the SparkFun ProRF those pins are 12 and 6 respectively.
@@ -70,7 +71,7 @@ long timeSinceLastPacket = 0; //Tracks the time stamp of last packet received
 //float frequency = 864.1;
 float frequency = 921.2;
 
-//Functions
+//Setup
 
 void setup()
 {
@@ -115,14 +116,11 @@ void loop()
   // MAIN LOOP
   // There are 4 activities to this project:
   //1. Get my position and update my manifest.
-  //2. Relay my manifest to anyone who will listen (UDP style).
+  //2. Relay my current POSITION to anyone who will listen (UDP style).
   //3. Listen for anyone's transmitting data. If so, receive it and update my manifest. 
   //4. Relay my updated manifest to the gateway, and in turn the server. (FUTURE DEVELOPMENT)
 
-  //For now, I am doing the first 3 activities with the hope that the gateway will be for future development. 
-
-    
-  //SerialUSB.println("begining loop");
+  //For now, I am doing the first 3 activities with the hope that the gateway will be for future development.
   
   //FUTURE DEVELOPMENT TO GET BATTERY STATUS:
   /*
@@ -135,21 +133,22 @@ void loop()
   //SerialUSB.println(voltage);
   */
   //END BATTERY CHECK
-
+  SerialUSB.println("STEP 0: Test output");
   //ACTIVITY 1:
    if (SerialUSB.available()) {          // If anything comes in Serial (USB),
     Serial1.write(SerialUSB.read());     // read it and send it out Serial1 (pins 0 & 1) 
+    
    }
 
-   //if (Serial1.available()) 
-   {            // If anything comes in Serial1 (pins 0 & 1)
+   //supressing for debugging. This is where the LAT/LON is coming in.  if (Serial1.available()) // If anything comes in Serial1 (pins 0 & 1)
+   {            
 
     //Get my Position: process the NMEA input
-    SerialUSB.println("STEP 1: Reading and recording GPS data. ");
+    SerialUSB.println("STEP 1: Reading and recording GPS data...........................................................................! ");
     gps.encode(Serial1.read());
     
     //SerialUSB.print("readingCounter=");  SerialUSB.println(readingCounter);
-    SerialUSB.print("TESTING!!!!!!!!!!!!!LAT=");  SerialUSB.println(gps.location.lat(), 6);
+    //SerialUSB.print("TEST!!!!!!!!!!!!!LAT=");  SerialUSB.println(gps.location.lat(), 6);
     /*
     SerialUSB.print("LONG="); SerialUSB.println(gps.location.lng(), 6);
     SerialUSB.print("ALT=");  SerialUSB.println(gps.altitude.meters());
@@ -160,7 +159,7 @@ void loop()
     */
     curr_info.readingID = readingCounter;
     curr_info.nodeID    = curr_ID ;
-    curr_info.curr_Lat  = gps.location.lat()+20;
+    curr_info.curr_Lat  = gps.location.lat()+10; //+10 for debug
     curr_info.curr_Lon  = gps.location.lng();
     curr_info.curr_Alt  = gps.altitude.meters();
     curr_info.curr_Hour = gps.time.hour();
@@ -172,7 +171,7 @@ void loop()
 
     thisNodesManifest[posofManifestDataWriter].readingID = readingCounter;
     thisNodesManifest[posofManifestDataWriter].nodeID    = curr_ID ;
-    thisNodesManifest[posofManifestDataWriter].curr_Lat  = gps.location.lat()+20;
+    thisNodesManifest[posofManifestDataWriter].curr_Lat  = gps.location.lat()+10; //+10 for debug
     thisNodesManifest[posofManifestDataWriter].curr_Lon  = gps.location.lng();
     thisNodesManifest[posofManifestDataWriter].curr_Alt  = gps.altitude.meters();
     thisNodesManifest[posofManifestDataWriter].curr_Hour = gps.time.hour();
@@ -180,68 +179,47 @@ void loop()
     thisNodesManifest[posofManifestDataWriter].curr_sec  = gps.time.second();
     //thisNodesManifest[posofManifestDataWriter].curr_date = gps.date.value();
     
-    /*
-    manifest[curr_ID].thisNodesManifest[posofManifestDataWriter].readingID = readingCounter;
-    manifest[curr_ID].thisNodesManifest[posofManifestDataWriter].nodeID    = curr_ID ;
-    manifest[curr_ID].thisNodesManifest[posofManifestDataWriter].curr_Lat  = gps.location.lat();
-    manifest[curr_ID].thisNodesManifest[posofManifestDataWriter].curr_Lon  = gps.location.lng();
-    manifest[curr_ID].thisNodesManifest[posofManifestDataWriter].curr_Alt  = gps.altitude.meters();
-    manifest[curr_ID].thisNodesManifest[posofManifestDataWriter].curr_Hour = gps.time.hour();
-    manifest[curr_ID].thisNodesManifest[posofManifestDataWriter].curr_min  = gps.time.minute();
-    manifest[curr_ID].thisNodesManifest[posofManifestDataWriter].curr_sec  = gps.time.second();
-    manifest[curr_ID].thisNodesManifest[posofManifestDataWriter].curr_date = gps.date.value();
+ 
 
-    This will be implemented after I get the 1 page thing working
-    */
-
+    SerialUSB.print("TEST!!!!!!!!!!!!!LAT=");  SerialUSB.println(thisNodesManifest[posofManifestDataWriter].curr_Lat);
     
-    //SerialUSB.print("readingID: "); SerialUSB.println(manifest[curr_ID].thisNodesManifest[posofManifestDataWriter].readingID);
-    
-    //SerialUSB.print("posofManifestDataWriter: "); SerialUSB.println(posofManifestDataWriter);
     
     //Update counters
     readingCounter = readingCounter + 1;
     posofManifestDataWriter = posofManifestDataWriter + 1;
-    
+
+    //If manifest is full, reset the counter to the top to delete the oldest reading NOTE: this list is now not sorted....
     if (posofManifestDataWriter > NumofReadings){
-      posofManifestDataWriter = 0; //manifest is full. delete oldest reading. 
+      posofManifestDataWriter = 0; 
     }
   
 
 
 
       //FUTURE DEVELOPMENT
+        /*
+      A0adc = analogRead(A0); // dummy reading
+      A0adc = analogRead(A0); // actual reading
+      battVolts = A0adc * 0.004567; // calibrate here
+      Serial.print("Volts:");
+      Serial.println(battVolts);
+      //curr_info.curr_battery = getBandgap();
+      */
+  
+      //SANITY CHECK
       /*
-    A0adc = analogRead(A0); // dummy reading
-    A0adc = analogRead(A0); // actual reading
-    battVolts = A0adc * 0.004567; // calibrate here
-    Serial.print("Volts:");
-    Serial.println(battVolts);
-    //curr_info.curr_battery = getBandgap();
-    */
-
-    //SANITY CHECK
-    SerialUSB.println("Sanity Check1................................");
-    print1PageofManifest(thisNodesManifest);
-    SerialUSB.println("End of Sanity Check1................................");
+      SerialUSB.println("Sanity Check................................");
+      print1PageofManifest(thisNodesManifest);
+      SerialUSB.println("End of Sanity Check................................");
+      */
   }
   
   //END ACTIVITY 1
-
-    /*
-    SerialUSB.print("2LAT=");  SerialUSB.println(curr_info.curr_Lat,6);
-    SerialUSB.print("2LONG="); SerialUSB.println(curr_info.curr_Lon,6);
-    SerialUSB.print("2ALT=");  SerialUSB.println(curr_info.curr_Alt);
-    SerialUSB.print("2Time="); SerialUSB.print(curr_info.curr_Hour); // Hour (0-23) (u8) 
-    SerialUSB.print(":");     SerialUSB.print(curr_info.curr_min); // Minute (0-59) (u8)
-    SerialUSB.print(":");     SerialUSB.println(curr_info.curr_sec); // Second (0-59) (u8)
-    SerialUSB.print("2Date="); SerialUSB.println(curr_info.curr_date); // Raw date in DDMMYY format (u32)
-    */
   
   // START ACTIVITY 2
   // Lets do this UDP style - blast it out and cross your fingers that someone hears you. X)
   
-  //SerialUSB.println("Sending manifest page 1.");
+  SerialUSB.println("Beginning Step2: Send currentinfo.............. ");
 
   //Send manifest a message to the other radio
    // rf95.send(curr_info, sizeof(curr_info));
@@ -287,8 +265,9 @@ void loop()
 
 
       // Send the manifest. This needs to be done "page by page" as the packet can become large.
+      //This is still in DEV so I am only sending 1 page  to start
       
-      SerialUSB.println("Sending -thisNodesManifest- to anyone who will listen");
+      SerialUSB.println("Sending -curr_info- to anyone who will listen");
       // convert the page struct to byte array
       uint8_t buffer[sizeof(thisNodesManifest)];
 
@@ -436,7 +415,7 @@ void loop()
 
   //Start Activity 3
 
-  SerialUSB.println("Begining Step 3:");
+  SerialUSB.println("Begining Step 3: listen for an incoming packet for 5 seconds");
   //wait for packet to comlpete
   rf95.waitPacketSent();
 
@@ -456,7 +435,8 @@ void loop()
 
      //currently this is 1 page of manifest. this will be bigger later? or will i only ever recieve 1 page at a time?
      information incomingNodesManifest[NumofReadings];
-     
+
+     information incomingNodesCurrInfo;
      //manifestType recievedManifest[NumofNodes]; // I should have recieved a manifest of the 2 nodes. 
      
      memcpy(&incomingNodesManifest, &buf, sizeof(buf));
@@ -471,6 +451,8 @@ void loop()
     //reconcile my manifest with the one that I just recieved. 
     //TODOing...
     ReconcileManifest(incomingNodesManifest);
+    SerialUSB.print("checking what the nodeid is of the last page:");
+    SerialUSB.println(manifest[NumofNodes].thisNodesManifest[0].nodeID);
 
     //Print out stuff for debug
     //SerialUSB.print("0sReadingID=");  SerialUSB.println(recievedManifest[0].thisNodesManifest[0].readingID);
@@ -531,15 +513,22 @@ void loop()
 
   //START ACTIVITY 4------------FUTURE DEVELOPMENT
   //END ACTIVITY 4
-  
+
+  //Start sanity check 
+  SerialUSB.println("Sanity Check3................................");
+  printEntireManifest(manifest);
+  SerialUSB.println("End of Sanity Check3................................");
+  //end sanity check
 }
+
+//FUNCTIONS
 String converter(uint8_t *str){
     return String((char *)str);
 }
 void printEntireManifest(manifestType Manifest[]){
   for(int counter = 0; counter < NumofNodes; counter = counter + 1 )
   {
-      SerialUSB.print("Manifest of Node ");SerialUSB.println(counter);
+      SerialUSB.print("Manifest of Page ");SerialUSB.println(counter);
       
       print1PageofManifest(Manifest[counter].thisNodesManifest);
       SerialUSB.println();
@@ -551,7 +540,7 @@ void print1PageofManifest(information* aNodesManifest){
 
    for (int row = 0; row < NumofReadings ; row = row + 1)
      {
-        SerialUSB.print("pass# "); SerialUSB.println(row);
+        SerialUSB.print("Manifest Page # "); SerialUSB.println(row);
         SerialUSB.print("ID=");  SerialUSB.println(aNodesManifest[row].nodeID);
         SerialUSB.print("LAT=");  SerialUSB.println(aNodesManifest[row].curr_Lat,6);
         SerialUSB.print("LONG="); SerialUSB.println(aNodesManifest[row].curr_Lon,6);
@@ -569,6 +558,9 @@ void ReconcileManifest(information incomingNodesManifest[])
   
   for(int counter = 0; counter < NumofNodes; counter = counter + 1 )
   {
+    
+    SerialUSB.print("check="); SerialUSB.println(incomingNodesManifest[0].nodeID);
+    SerialUSB.print("againstmanifest="); SerialUSB.println(manifest[counter].thisNodesManifest[0].nodeID);
     if(incomingNodesManifest[0].nodeID == manifest[counter].thisNodesManifest[0].nodeID)
     {
         SerialUSB.println("Found the page associated with the incoming pages ID.");
@@ -607,8 +599,47 @@ void ReconcileManifest(information incomingNodesManifest[])
   }
   if (foundPageInMyManifest == false)
   {
-      SerialUSB.println("The incoming page's ID is not in my manifest. Adding a new page to my manifest TODO.");
-      //0NumofNodes = NumofNodes + 1;
+      SerialUSB.println("The incoming page's ID is not in my manifest. Adding a new page to my manifest TODO. ShortSanity checking ID:");
+      SerialUSB.println(incomingNodesManifest[0].nodeID);
+
+      
+      NumofNodes = NumofNodes + 1;
+
+      manifestType BiggerManifest[NumofNodes];
+
+      //copy info to new struct
+      
+      for(int i = 0; i < (NumofNodes - 1) ; i = i + 1)
+      {
+        BiggerManifest[i] = manifest[i];
+      }
+      free(manifest); //Not sure if this will work.........
+      //manifestType manifest[NumofNodes];
+
+      for(int i = 0; i < (NumofNodes - 1) ; i = i + 1)
+      {
+        manifest[i] = BiggerManifest[i];
+      }
+
+      //Add the last page to the end
+      
+      for(int i = 0; i < NumofReadings ; i = i + 1)
+      {
+          manifest[NumofNodes].thisNodesManifest[i].readingID = incomingNodesManifest[i].readingID;
+          manifest[NumofNodes].thisNodesManifest[i].nodeID    = incomingNodesManifest[i].nodeID;
+          manifest[NumofNodes].thisNodesManifest[i].curr_Lat  = incomingNodesManifest[i].curr_Lat;
+          manifest[NumofNodes].thisNodesManifest[i].curr_Lon  = incomingNodesManifest[i].curr_Lon;
+          manifest[NumofNodes].thisNodesManifest[i].curr_Alt  = incomingNodesManifest[i].curr_Alt;
+          manifest[NumofNodes].thisNodesManifest[i].curr_Hour = incomingNodesManifest[i].curr_Hour;
+          manifest[NumofNodes].thisNodesManifest[i].curr_min  = incomingNodesManifest[i].curr_min;
+          manifest[NumofNodes].thisNodesManifest[i].curr_sec  = incomingNodesManifest[i].curr_sec;
+      }
+      SerialUSB.print("finally, checking what the nodeid is of the last page:");
+      SerialUSB.println(manifest[NumofNodes].thisNodesManifest[0].nodeID);
+
+      SerialUSB.print("It should be:");
+      SerialUSB.println(incomingNodesManifest[0].nodeID);
+      
   }
 
 
