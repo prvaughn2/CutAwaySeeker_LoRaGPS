@@ -68,7 +68,7 @@ long timeSinceLastPacket = 0; //Tracks the time stamp of last packet received
 // Europe operates in the frequencies 863-870, center frequency at 
 // 868MHz.This works but it is unknown how well the radio configures to this frequency:
 //float frequency = 864.1;
-float frequency = 921.2;
+float frequency = 904.6;//921.2;
 
 //Functions
 
