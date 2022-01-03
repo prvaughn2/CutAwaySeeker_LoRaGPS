@@ -29,21 +29,33 @@
 #include "TinyGPS++.h" //NMEA Parsing
 #include "Battery.h" // Battery info
 #include "GlobalVarbs.h" // Config file for this node
+#include "ThisNodesConfig.h" // node specific varbs
 //#include "Functions.h" // Global Functions for this program
 
 //Globals
-static uint16_t curr_ID = 1; //ID for this node
 TinyGPSPlus gps; //GPS info
+int numDiscoveredNodes;
 
 
 void setup()
 {
+
+  for(int i=0 ; i < MAX_NUM_NODES ; i = i +1)
+{
+  //declare a queue of readings. this is a "tab" or 1 page of manifest. 
+  //struct Queue* aPageofManifest = createQueue(NumofReadings);
+
+  aBookCalledManifest[i] = createQueue(NumofReadings);
+}
+
+
+  numDiscoveredNodes = 1; 
   pinMode(LED, OUTPUT);
 
   SerialUSB.begin(9600);
   // It may be difficult to read serial messages on startup. The following line
   // will wait for serial to be ready before continuing. Comment out if not needed.
-  while(!SerialUSB); 
+  //while(!SerialUSB); 
   SerialUSB.println("RFM Client!"); 
 
   //Initialize the Radio.
@@ -74,7 +86,7 @@ void setup()
 void loop()
 {
   //////////////////////////////////////////////////////////////////////////////////////Step 1/////////////////////////////////////////////////////////////////////////////////////////////////
-delay(5000);
+delay(2000);
 
 
   SerialUSB.println("STEP 0: Test output");
@@ -82,45 +94,37 @@ delay(5000);
     Serial1.write(SerialUSB.read());     // read it and send it out Serial1 (pins 0 & 1)
   }
 
-  //supressing for debugging. This is where the LAT/LON is coming in.  if (Serial1.available()) // If anything comes in Serial1 (pins 0 & 1)
+  //Info that is consistant across all readings
+  curr_info.readingID = readingCounter;
+  curr_info.nodeID    = curr_ID;
+  SerialUSB.println("STEP 1: Reading and recording GPS data...........................................................................! ");
+
+  SerialUSB.print("STEP 1.5: Reading serial0:");
+  SerialUSB.println(Serial.read());
+  SerialUSB.print("STEP 1.6: Reading serial1:");
+  SerialUSB.println(Serial1.read());
+  
+
+  
+  //This is where the LAT/LON is coming in.  
+  if (Serial1.available()) // If anything comes in Serial1 (pins 0 & 1)
   {
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// Step 1 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    //Get my Position: process the NMEA input
-    SerialUSB.println("STEP 1: Reading and recording GPS data...........................................................................! ");
+    //Get my Position: process the NMEA input    
     gps.encode(Serial1.read());
-
-    
-
-    curr_info.readingID = readingCounter;
-    curr_info.nodeID    = curr_ID;
-    curr_info.curr_Lat  = gps.location.lat() + 10; //+10 for debug
+    curr_info.curr_Lat  = gps.location.lat() + DebugOffset; //+10 for debug
     curr_info.curr_Lon  = gps.location.lng();
     curr_info.curr_Alt  = gps.altitude.meters();
     //curr_info.curr_Hour = gps.time.hour();
     //curr_info.curr_min  = gps.time.minute();
     //curr_info.curr_sec  = gps.time.second();
 
-    enqueue(aPageofManifest,curr_info);
+    enqueue(aBookCalledManifest[0],curr_info);
 
-    SerialUSB.print("TEST!!!!!!!!!!!!!Last LAT="); SerialUSB.println(front(aPageofManifest).curr_Lat);
-    **********************STOPPED HERE>>>>> Queue is working, need to push this into the rest of the code. I think its a better approach. 
-
-    /*
-    //Update my manifest: Add the above information to the current Node's manifest
-    manifest[0].thisNodesManifest[posofManifestDataWriter].readingID = readingCounter;
-    manifest[0].thisNodesManifest[posofManifestDataWriter].nodeID    = curr_ID ;
-    manifest[0].thisNodesManifest[posofManifestDataWriter].curr_Lat  = gps.location.lat() + 10; //+10 for debug
-    manifest[0].thisNodesManifest[posofManifestDataWriter].curr_Lon  = gps.location.lng();
-    manifest[0].thisNodesManifest[posofManifestDataWriter].curr_Alt  = gps.altitude.meters();
-    //manifest[0].thisNodesManifest[posofManifestDataWriter].curr_Hour = gps.time.hour();
-    //manifest[0].thisNodesManifest[posofManifestDataWriter].curr_min  = gps.time.minute();
-    //manifest[0].thisNodesManifest[posofManifestDataWriter].curr_sec  = gps.time.second();
-
-    SerialUSB.print("TEST!!!!!!!!!!!!!LAT=");  SerialUSB.println(thisNodesManifest[posofManifestDataWriter].curr_Lat);
-    SerialUSB.print("TEST!!!!!!!!!!!!!inside the manifest LAT=");  SerialUSB.println(manifest[0].thisNodesManifest[0].curr_Lat);
-     */
     //Update counters
     readingCounter = readingCounter + 1;
+    
+    //posofmanifest WLL BE EDFUNCT AS SOON AS I FINISH THE QUEUE
     posofManifestDataWriter = posofManifestDataWriter + 1;
 
     //If manifest is full, reset the counter to the top to delete the oldest reading NOTE: this list is now not sorted....
@@ -128,6 +132,12 @@ delay(5000);
       posofManifestDataWriter = 0;
     }
   }
+  else
+  {
+    SerialUSB.println("Nothing coming in on serial. This means either there is nothing connected or nothing is communicating on that port....");
+  }
+
+      SerialUSB.print("DEBUG!!!!!!!!!!!!!Last readings LAT="); SerialUSB.println(front(aBookCalledManifest[0]).curr_Lat);
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// Step 2 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // START ACTIVITY 2
 
@@ -138,26 +148,26 @@ delay(5000);
 
   SerialUSB.println("Sending -curr_info- to anyone who will listen");
   // convert the page struct to byte array
-  uint8_t buffer[sizeof(curr_info)];
+  uint8_t buffer2[sizeof(curr_info)];
 
-  memcpy(buffer, &curr_info, sizeof(curr_info));
+  memcpy(buffer2, &curr_info, sizeof(curr_info));
 
-  if (sizeof(buffer) < 1)
+  if (sizeof(buffer2) < 1)
   {
     SerialUSB.println("buffer is empty...:(");
   }
   else
-    SerialUSB.print("the sending buffer's size:"); SerialUSB.println(sizeof(buffer));
+    SerialUSB.print("the sending buffer's size:"); SerialUSB.println(sizeof(buffer2));
 
 
   //pass buffer to radio
-  rf95.send(buffer, sizeof(buffer));
+  rf95.send(buffer2, sizeof(buffer2));
 
   rf95.waitPacketSent();
   SerialUSB.println("Sent my manifest out successfully. ");
   digitalWrite(LED, LOW); //Turn off status LED
 
-  //END ACTIVITY 2?
+  //END ACTIVITY 2
   /////////////////////////////////////////////////////////////////////////////////////////End Step 2//////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// Step 3 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   //START ACTIVITY 3 - rec. others manifest and update mine.
@@ -170,7 +180,7 @@ delay(5000);
   uint8_t buf[sizeof(curr_info)];
   byte len = sizeof(buf);
 
-  if (rf95.waitAvailableTimeout(2000))//This will change to whatever I want the timeout interval to be. TODO
+  if (rf95.waitAvailableTimeout(25000))//This will change to whatever I want the timeout interval to be. TODO
   {
     // Should be a reply message for us now
     if (rf95.recv(buf, &len)) {
@@ -197,7 +207,8 @@ delay(5000);
       SerialUSB.println("End of Sanity Check #2................................");
 
       //reconcile my manifest with the one that I just recieved.
-      //addIncomingCurrInfoToMyManifest(incoming_curr_info);
+      //TODO Sanity checks on the incoming packet i.e. size, node id is a POS num etc. 
+      addIncomingCurrInfoToMyBookCalledManifest(incoming_curr_info);
     }
     else
     {
@@ -253,7 +264,73 @@ void loop()
 
 */
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// Functions /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void addIncomingCurrInfoToMyManifest(information someNodesCurrInfo)
+void addIncomingCurrInfoToMyBookCalledManifest(information someNodesCurrInfo)
+{
+  SerialUSB.println("Adding incming nodes curr info to my Book called manifest");
+
+  //First check to see if I already have a page for the incoming node's info
+  bool foundPageInMyManifest = false;
+  int counter = 0, IndexofNextQueue = 1;
+  for ( ; counter < NumofReadings; counter = counter + 1 )
+  //while(counter < MAX_NUM_NODES)
+  {
+    //NOTE - doing anything in this function produceas a warning to change the starty of the .bss files to ofset by 4.... not sure whuy
+    ////////////////////////////////////////////////////////////THIS IS THE PROBLEM!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+        SerialUSB.print("seeing if the array entry has a queue. size of the queue im checking: "); 
+    SerialUSB.print(aBookCalledManifest[counter]->size); SerialUSB.println("");
+    //SerialUSB.print((aBookCalledManifest[counter+1])->size); SerialUSB.println(".");
+
+    if ((aBookCalledManifest[counter])->size == 0) // this checks if the next queue has a 
+    {
+       SerialUSB.print("the array I am now checking is empty, I will not check nothing further ");
+        IndexofNextQueue = counter;
+        counter = NumofReadings - 1;
+    }
+
+    else
+    {
+    
+    SerialUSB.print("ID check. Checking the incoming ID of:"); 
+    SerialUSB.print(someNodesCurrInfo.nodeID); SerialUSB.println(".");
+    SerialUSB.print("Against the stored ID of:");
+    SerialUSB.print(front(aBookCalledManifest[counter]).nodeID);SerialUSB.println(".");
+
+    SerialUSB.println("Actually doing the check now:");
+
+    if (someNodesCurrInfo.nodeID == front(aBookCalledManifest[counter]).nodeID)
+    {
+      SerialUSB.println("Adding incoming nodes curr info my Manifest as an exsisting page");
+      foundPageInMyManifest = true;
+      enqueue(aBookCalledManifest[counter],someNodesCurrInfo); // is this right?
+      
+      SerialUSB.println("Incoming Nodes info successfully enqueued to exsisting page!");
+      return;// is this right?
+    }
+    }
+  }
+
+  // If we are here, that means this is a new node's data
+  if (foundPageInMyManifest == false) // this is now a redundanty check... leave in for now
+  {
+    SerialUSB.print("The incoming page's ID is not in my manifest. Adding a new page to my manifest. Sanity checking ID:");
+    SerialUSB.println(someNodesCurrInfo.nodeID);
+
+    SerialUSB.print("IndexofNextQueue:");
+    SerialUSB.println(IndexofNextQueue);
+    
+
+    numDiscoveredNodes = numDiscoveredNodes + 1;
+
+    enqueue(aBookCalledManifest[IndexofNextQueue],someNodesCurrInfo); // is this right? 
+    SerialUSB.println("Incoming Nodes info successfully enqueued to new page!");
+   
+  }
+
+  return;
+}
+
+/*void addIncomingCurrInfoToMyManifest(information someNodesCurrInfo)
 {
   SerialUSB.print("Adding incming nodes curr info to my manifest");
 
@@ -362,6 +439,7 @@ void addIncomingCurrInfoToMyManifest(information someNodesCurrInfo)
 
 
 }
+*/
 
 String converter(uint8_t *str) {
   return String((char *)str);
@@ -387,7 +465,7 @@ void print1PageofManifest(information aNodesManifest) { // print the short versi
     SerialUSB.print("LONG="); SerialUSB.println(aNodesManifest.curr_Lon, 6);
   }
 }
-void ReconcileManifest(information incomingNodesManifest[])
+/*void ReconcileManifest(information incomingNodesManifest[])
 {
 
   // We just got a page of a manifest from an outside node. We need to combine/update this new information with ours.
@@ -486,3 +564,4 @@ void ReconcileManifest(information incomingNodesManifest[])
 
   SerialUSB.println("END reconcile manifest ;;;;;;;;;;;;;");
 }
+*/
