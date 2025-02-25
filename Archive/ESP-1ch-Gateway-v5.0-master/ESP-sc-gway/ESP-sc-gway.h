@@ -229,7 +229,7 @@
 //#define CFG_sx1272_radio
 
 // Serial Port speed
-#define _BAUDRATE 115200					// Works for debug messages to serial momitor
+#define _BAUDRATE 9600					// Works for debug messages to serial momitor
 
 // We can put the gateway in such a mode that it will (only) recognize
 // nodes that are put in a list of trusted nodes 
@@ -260,8 +260,7 @@ struct wpas {
 //
 wpas wpa[] = {
 	{ "" , "" },							// Reserved for WiFi Manager
-	{ "FiOS-44FQM", "sugar8tube5215bag" },
-	{ "ape", "beer" }
+		{ "ape", "beer" }
 };
 
 // For asserting and testing the following defines are used.

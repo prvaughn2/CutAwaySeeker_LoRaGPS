@@ -28,10 +28,163 @@
 #include <RH_RF95.h> //Radio Head Library
 //#include "TinyGPS++.h" //NMEA Parsing
 #include <NMEAGPS.h> //NMEA parsing V2 ....:(
-#include "Battery.h" // Battery info
-#include "GlobalVarbs.h" // Config file for this node
-#include "ThisNodesConfig.h" // node specific varbs
+//#include "Battery.h" // Battery info
+//#include "GlobalVarbs.h" // Config file for this node
+//#include "ThisNodesConfig.h" // node specific varbs
 //#include "Functions.h" // Global Functions for this program
+
+// *********Global varbs
+float frequency = 904.6;
+int readingCounter = 0;
+int posofManifestDataWriter = 0;
+struct information {
+  uint16_t readingID;
+  uint16_t nodeID;
+  double curr_Lat;
+  double curr_Lon;
+  double curr_Alt;
+  //uint8_t curr_Hour;
+  //uint8_t curr_min;
+  //uint8_t curr_sec;
+  //uint32_t curr_date;
+  //int curr_battery;
+} curr_info, incoming_curr_info;
+
+//3d table for all the information that I know (AKA Manifest) tablenamedefinedas[rows][col][depth]
+#define initialNumofNodes 2
+int NumofNodes = initialNumofNodes;     //Starting with 2 nodes aka pages for manifest aka devices. this can be a variable for later development.
+#define NumofReadings 3 //Start with last 10 readings
+#define NumofCol 9      //See struct above
+
+//Only this nodes readings. AKA my page of my manifest.
+information thisNodesManifest[NumofReadings];
+
+//I see this as a "book" titled Manifest. Each page represents a node, and each page contains that node's data
+struct manifestType
+{
+  information thisNodesManifest[NumofReadings];
+} manifest[initialNumofNodes];
+
+// We need to provide the RFM95 module's chip select and interrupt pins to the
+// rf95 instance below.On the SparkFun ProRF those pins are 12 and 6 respectively.
+RH_RF95 rf95(12, 6);
+
+//Status LED on pin 13
+int LED = 13; 
+
+//Counts the number of packets sent
+int packetCounter = 0; 
+
+//Tracks the time stamp of last packet received
+long timeSinceLastPacket = 0; 
+
+// C program for array implementation of queue
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+ 
+// A structure to represent a queue
+struct Queue {
+    int front, rear, size;
+    unsigned capacity;
+    information* array;
+};
+ 
+// function to create a queue
+// of given capacity.
+// It initializes size of queue as 0
+struct Queue* createQueue(unsigned capacity)
+{
+    struct Queue* queue = (struct Queue*)malloc(
+        sizeof(struct Queue));
+    queue->capacity = capacity;
+    queue->front = queue->size = 0;
+ 
+    // This is important, see the enqueue
+    queue->rear = capacity - 1;
+    queue->array = (information*)malloc(
+        queue->capacity * sizeof(information));
+    return queue;
+}
+ 
+// Queue is full when size becomes
+// equal to the capacity
+int isFull(struct Queue* queue)
+{
+    return (queue->size == queue->capacity);
+}
+ 
+// Queue is empty when size is 0
+int isEmpty(struct Queue* queue)
+{
+    return (queue->size == 0);
+}
+
+// Function to remove an item from queue.
+// It changes front and size
+information dequeue(struct Queue* queue)
+{
+    if (isEmpty(queue))
+    {
+        information blankarray;
+        return blankarray;
+    }
+    information item = queue->array[queue->front];
+    queue->front = (queue->front + 1)
+                   % queue->capacity;
+    queue->size = queue->size - 1;
+    return item;
+}
+
+// Function to add an item to the queue.
+// It changes rear and size
+void enqueue(struct Queue* queue, information item)
+{
+    if (isFull(queue)) // MODIFICATION MADE: if we get a reading, but our queue is full, drop the last one. 
+        dequeue(queue);
+    queue->rear = (queue->rear + 1)
+                  % queue->capacity;
+    queue->array[queue->rear] = item;
+    queue->size = queue->size + 1;
+    printf("%d enqueued to queue\n", item);
+}
+ 
+// Function to get front of queue
+information front(struct Queue* queue)
+{
+    if (isEmpty(queue))
+    {
+        information blankarray;
+        return blankarray;
+    }
+    return queue->array[queue->front];
+}
+ 
+// Function to get rear of queue
+information rear(struct Queue* queue)
+{
+    if (isEmpty(queue))
+    {
+        information blankarray;
+        return blankarray;
+    }
+    return queue->array[queue->rear];
+}
+
+//The is the array of queues aka book/manifest
+#define MAX_NUM_NODES 100
+
+
+struct Queue* aBookCalledManifest[MAX_NUM_NODES];
+// ************
+
+
+//this nodes config
+static uint16_t curr_ID = (*(uint32_t*)0x0080A00C); //ID for this node
+static int DebugOffset = 10;
+///end config
+
+
 
 //Globals
 //TinyGPSPlus gps; //GPS info
@@ -355,117 +508,6 @@ void addIncomingCurrInfoToMyBookCalledManifest(information someNodesCurrInfo)
   return;
 }
 
-/*void addIncomingCurrInfoToMyManifest(information someNodesCurrInfo)
-{
-  SerialUSB.print("Adding incming nodes curr info to my manifest");
-
-
-  // We just got a page of a manifest from an outside node. We need to combine/update this new information with our manifest.
-
-  //First check to see if I already have a page for the incoming node's info
-
-  bool foundPageInMyManifest = false;
-
-  for (int counter = 0; counter < NumofNodes; counter = counter + 1 )
-  {
-
-    SerialUSB.print("check="); SerialUSB.println(someNodesCurrInfo.nodeID);
-    SerialUSB.print("againstmanifest="); SerialUSB.println(manifest[counter].thisNodesManifest[0].nodeID);
-    
-    if (someNodesCurrInfo.nodeID == manifest[counter].thisNodesManifest[0].nodeID)
-    {
-      SerialUSB.println("Found the page associated with the incoming pages ID.");
-      foundPageInMyManifest = true;
-      // Found the page. Update my manifest with the new information.
-
-      // go line by line of my manifest and see if there is new information (somewhat bubble sort like?)
-      int incomingRowCounter = 0;
-      int myManifestRowCounter = 0;
-      for (int readingsCounter = 0 ; readingsCounter < NumofNodes ; readingsCounter = readingsCounter + 1) //better, but not great code
-      {
-        //We already have an entry for this node.
-
-
-        
-        //if the incoming nodes reading ID is greater than ours (aka that reading is newer than ours) overwrite that reading in my book) // THIS WILL ALWAYS HAPPEN////
-        if (someNodesCurrInfo.readingID > manifest[counter].thisNodesManifest[myManifestRowCounter].readingID )
-        {
-          //take that reading over mine
-
-          manifest[counter].thisNodesManifest[myManifestRowCounter].readingID = someNodesCurrInfo.readingID;
-          manifest[counter].thisNodesManifest[myManifestRowCounter].nodeID    = someNodesCurrInfo.nodeID;
-          manifest[counter].thisNodesManifest[myManifestRowCounter].curr_Lat  = someNodesCurrInfo.curr_Lat;
-          manifest[counter].thisNodesManifest[myManifestRowCounter].curr_Lon  = someNodesCurrInfo.curr_Lon;
-          manifest[counter].thisNodesManifest[myManifestRowCounter].curr_Alt  = someNodesCurrInfo.curr_Alt;
-          //manifest[counter].thisNodesManifest[myManifestRowCounter].curr_Hour = someNodesCurrInfo.curr_Hour;
-          //manifest[counter].thisNodesManifest[myManifestRowCounter].curr_min  = someNodesCurrInfo.curr_min;
-          //manifest[counter].thisNodesManifest[myManifestRowCounter].curr_sec  = someNodesCurrInfo.curr_sec;
-
-          //Update counters
-          myManifestRowCounter = myManifestRowCounter + 1;
-        }
-
-        incomingRowCounter = incomingRowCounter + 1;
-
-      }
-
-    }
-
-  }
-  if (foundPageInMyManifest == false)
-  {
-    SerialUSB.println("The incoming page's ID is not in my manifest. Adding a new page to my manifest. ShortSanity checking ID:");
-    SerialUSB.println(someNodesCurrInfo.nodeID);
-
-
-    NumofNodes = NumofNodes + 1;
-
-    manifestType BiggerManifest[NumofNodes];
-
-    //copy info to new struct
-
-    for (int i = 0; i < (NumofNodes - 1) ; i = i + 1)
-    {
-      BiggerManifest[i] = manifest[i];
-    }
-    free(manifest); //Not sure if this will work.........
-    //manifestType manifest[NumofNodes];
-
-    for (int i = 0; i < (NumofNodes - 1) ; i = i + 1)
-    {
-      manifest[i] = BiggerManifest[i];
-    }
-
-    //Add the last page to the end
-
-    for (int i = 0; i < NumofReadings ; i = i + 1)
-    {
-      manifest[NumofNodes].thisNodesManifest[i].readingID = someNodesCurrInfo.readingID;
-      manifest[NumofNodes].thisNodesManifest[i].nodeID    = someNodesCurrInfo.nodeID;
-      manifest[NumofNodes].thisNodesManifest[i].curr_Lat  = someNodesCurrInfo.curr_Lat;
-      manifest[NumofNodes].thisNodesManifest[i].curr_Lon  = someNodesCurrInfo.curr_Lon;
-      manifest[NumofNodes].thisNodesManifest[i].curr_Alt  = someNodesCurrInfo.curr_Alt;
-      //manifest[NumofNodes].thisNodesManifest[i].curr_Hour = someNodesCurrInfo.curr_Hour;
-      //manifest[NumofNodes].thisNodesManifest[i].curr_min  = someNodesCurrInfo.curr_min;
-      //manifest[NumofNodes].thisNodesManifest[i].curr_sec  = someNodesCurrInfo.curr_sec;
-    }
-    SerialUSB.print("finally, checking what the nodeid is of the last page:");
-    SerialUSB.println(manifest[NumofNodes].thisNodesManifest[0].nodeID);
-
-    SerialUSB.print("It should be:");
-    SerialUSB.println(someNodesCurrInfo.nodeID);
-
-  }
-
-
-
-  SerialUSB.println("END addingtomymanifest ;;;;;;;;;;;;;");
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-}
-*/
-
 String converter(uint8_t *str) {
   return String((char *)str);
 }
@@ -490,103 +532,4 @@ void print1PageofManifest(information aNodesManifest) { // print the short versi
     SerialUSB.print("LONG="); SerialUSB.println(aNodesManifest.curr_Lon, 6);
   }
 }
-/*void ReconcileManifest(information incomingNodesManifest[])
-{
 
-  // We just got a page of a manifest from an outside node. We need to combine/update this new information with ours.
-
-  //First check to see if I already have a page for the incoming node's info
-
-  bool foundPageInMyManifest = false;
-
-  for (int counter = 0; counter < NumofNodes; counter = counter + 1 )
-  {
-
-    SerialUSB.print("check="); SerialUSB.println(incomingNodesManifest[0].nodeID);
-    SerialUSB.print("againstmanifest="); SerialUSB.println(manifest[counter].thisNodesManifest[0].nodeID);
-    if (incomingNodesManifest[0].nodeID == manifest[counter].thisNodesManifest[0].nodeID)
-    {
-      SerialUSB.println("Found the page associated with the incoming pages ID.");
-      foundPageInMyManifest = true;
-      // Found the page. Update my manifest with the new information.
-
-      // go line by line of my manifest and see if there is new information (somewhat bubble sort like?)
-      int incomingRowCounter = 0;
-      int myManifestRowCounter = 0;
-      for (int readingsCounter = 0 ; readingsCounter < NumofNodes ; readingsCounter = readingsCounter + 1) //better, but not great code
-      {
-        //if the incoming nodes reading ID is greater than ours (aka that reading is newer than ours) overwrite that reading in my book)
-        if (incomingNodesManifest[incomingRowCounter].readingID > manifest[counter].thisNodesManifest[myManifestRowCounter].readingID )
-        {
-          //take that reading over mine
-
-          manifest[counter].thisNodesManifest[myManifestRowCounter].readingID = incomingNodesManifest[incomingRowCounter].readingID;
-          manifest[counter].thisNodesManifest[myManifestRowCounter].nodeID    = incomingNodesManifest[incomingRowCounter].nodeID;
-          manifest[counter].thisNodesManifest[myManifestRowCounter].curr_Lat  = incomingNodesManifest[incomingRowCounter].curr_Lat;
-          manifest[counter].thisNodesManifest[myManifestRowCounter].curr_Lon  = incomingNodesManifest[incomingRowCounter].curr_Lon;
-          manifest[counter].thisNodesManifest[myManifestRowCounter].curr_Alt  = incomingNodesManifest[incomingRowCounter].curr_Alt;
-          //manifest[counter].thisNodesManifest[myManifestRowCounter].curr_Hour = incomingNodesManifest[incomingRowCounter].curr_Hour;
-          //manifest[counter].thisNodesManifest[myManifestRowCounter].curr_min  = incomingNodesManifest[incomingRowCounter].curr_min;
-          //manifest[counter].thisNodesManifest[myManifestRowCounter].curr_sec  = incomingNodesManifest[incomingRowCounter].curr_sec;
-
-          //Update counters
-          myManifestRowCounter = myManifestRowCounter + 1;
-        }
-
-        incomingRowCounter = incomingRowCounter + 1;
-
-      }
-
-    }
-
-  }
-  if (foundPageInMyManifest == false)
-  {
-    SerialUSB.println("The incoming page's ID is not in my manifest. Adding a new page to my manifest TODO. ShortSanity checking ID:");
-    SerialUSB.println(incomingNodesManifest[0].nodeID);
-
-
-    NumofNodes = NumofNodes + 1;
-
-    manifestType BiggerManifest[NumofNodes];
-
-    //copy info to new struct
-
-    for (int i = 0; i < (NumofNodes - 1) ; i = i + 1)
-    {
-      BiggerManifest[i] = manifest[i];
-    }
-    free(manifest); //Not sure if this will work.........
-    //manifestType manifest[NumofNodes];
-
-    for (int i = 0; i < (NumofNodes - 1) ; i = i + 1)
-    {
-      manifest[i] = BiggerManifest[i];
-    }
-
-    //Add the last page to the end
-
-    for (int i = 0; i < NumofReadings ; i = i + 1)
-    {
-      manifest[NumofNodes].thisNodesManifest[i].readingID = incomingNodesManifest[i].readingID;
-      manifest[NumofNodes].thisNodesManifest[i].nodeID    = incomingNodesManifest[i].nodeID;
-      manifest[NumofNodes].thisNodesManifest[i].curr_Lat  = incomingNodesManifest[i].curr_Lat;
-      manifest[NumofNodes].thisNodesManifest[i].curr_Lon  = incomingNodesManifest[i].curr_Lon;
-      manifest[NumofNodes].thisNodesManifest[i].curr_Alt  = incomingNodesManifest[i].curr_Alt;
-      //manifest[NumofNodes].thisNodesManifest[i].curr_Hour = incomingNodesManifest[i].curr_Hour;
-      //manifest[NumofNodes].thisNodesManifest[i].curr_min  = incomingNodesManifest[i].curr_min;
-      //manifest[NumofNodes].thisNodesManifest[i].curr_sec  = incomingNodesManifest[i].curr_sec;
-    }
-    SerialUSB.print("finally, checking what the nodeid is of the last page:");
-    SerialUSB.println(manifest[NumofNodes].thisNodesManifest[0].nodeID);
-
-    SerialUSB.print("It should be:");
-    SerialUSB.println(incomingNodesManifest[0].nodeID);
-
-  }
-
-
-
-  SerialUSB.println("END reconcile manifest ;;;;;;;;;;;;;");
-}
-*/

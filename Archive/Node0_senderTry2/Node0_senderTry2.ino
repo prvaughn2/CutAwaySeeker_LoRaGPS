@@ -26,19 +26,16 @@
 
 #include <SPI.h>
 #include <RH_RF95.h> //Radio Head Library
-//#include "TinyGPS++.h" //NMEA Parsing
-#include <NMEAGPS.h> //NMEA parsing V2 ....:(
+#include "TinyGPS++.h" //NMEA Parsing
 #include "Battery.h" // Battery info
 #include "GlobalVarbs.h" // Config file for this node
 #include "ThisNodesConfig.h" // node specific varbs
 //#include "Functions.h" // Global Functions for this program
 
 //Globals
-//TinyGPSPlus gps; //GPS info
-NMEAGPS gps;
+TinyGPSPlus gps; //GPS info
 int numDiscoveredNodes;
-gps_fix fix;
-//double debugerVal 0.1;
+
 
 void setup()
 {
@@ -83,79 +80,51 @@ void setup()
    // you can set transmitter powers from 5 to 23 dBm:
    // Transmitter power can range from 14-20dbm.
    rf95.setTxPower(14, false);
-
-     Serial.begin(9600);
-     Serial1.begin(9600);
 }
 
 
 void loop()
 {
   //////////////////////////////////////////////////////////////////////////////////////Step 1/////////////////////////////////////////////////////////////////////////////////////////////////
-//delay(2000);
+delay(2000);
 
 
   SerialUSB.println("STEP 0: Test output");
-
-  if (Serial1.available()) {       // If anything comes in Serial1 (pins 0 & 1)
-    //gps.encode(Serial1.read());
-     fix = gps.read();
-     SerialUSB.print("I read data on Serial1 status: ");
-     SerialUSB.println(fix.status);
-
-
-    //}(Serial1.read());  // read it and send it out Serial (USB)
+  if (SerialUSB.available()) {          // If anything comes in Serial (USB),
+    Serial1.write(SerialUSB.read());     // read it and send it out Serial1 (pins 0 & 1)
   }
 
-//supressing for debugging. This is where the LAT/LON is coming in.  
-  //if (Serial1.available()) // If anything comes in Serial1 (pins 0 & 1)
+  //Info that is consistant across all readings
+  curr_info.readingID = readingCounter;
+  curr_info.nodeID    = curr_ID;
+  SerialUSB.println("STEP 1: Reading and recording GPS data...........................................................................! ");
+
+  SerialUSB.print("STEP 1.5: Reading serial0:");
+  SerialUSB.println(Serial.read());
+  SerialUSB.print("STEP 1.6: Reading serial1:");
+  SerialUSB.println(Serial1.read());
+  
+
+  
+  //This is where the LAT/LON is coming in.  
+  // DEBUGON if (Serial1.available()) // If anything comes in Serial1 (pins 0 & 1)
   {
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// Step 1 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    //Get my Position: process the NMEA input
-    SerialUSB.println("STEP 1: Reading and recording GPS data...........................................................................! ");
-    //gps.encode(Serial1.read());
-    //while (Serial1.available() > 0){
-    //  gps.encode(Serial1.read());
-    //}
-
-    //char incomingByte = Serial1.read();
-    //SerialUSB.print("Raw GPS Byte: ");
-    //SerialUSB.println(incomingByte, DEC); // Print the raw byte for debugging
-    //gps.encode(incomingByte);
-
-    SerialUSB.print("TEST!!!!!!!!!!!!!fix.valid.location="); SerialUSB.println(fix.valid.location);
-
-    curr_info.readingID = readingCounter;
-    curr_info.nodeID    = curr_ID;
-    curr_info.curr_Lat  = fix.location.lat(); //no additional for  debug
-    curr_info.curr_Lon  = fix.location.lon();
-    //curr_info.curr_Alt  = fix.location.???????????
+    //Get my Position: process the NMEA input    
+    gps.encode(Serial1.read());
+    curr_info.curr_Lat  = gps.location.lat() + DebugOffset; //+10 for debug
+    curr_info.curr_Lon  = gps.location.lng();
+    curr_info.curr_Alt  = gps.altitude.meters();
     //curr_info.curr_Hour = gps.time.hour();
     //curr_info.curr_min  = gps.time.minute();
     //curr_info.curr_sec  = gps.time.second();
 
     enqueue(aBookCalledManifest[0],curr_info);
 
-    SerialUSB.print("TEST!!!!!!!!!!!!!Last LAT="); SerialUSB.println(front(aBookCalledManifest[0]).curr_Lat);
-
-    
-    //Update my manifest: Add the above information to the current Node's manifest
-    manifest[0].thisNodesManifest[posofManifestDataWriter].readingID = readingCounter;
-    manifest[0].thisNodesManifest[posofManifestDataWriter].nodeID    = curr_ID ;
-    manifest[0].thisNodesManifest[posofManifestDataWriter].curr_Lat  = fix.location.lat(); 
-    manifest[0].thisNodesManifest[posofManifestDataWriter].curr_Lon  = fix.location.lon();
-    //manifest[0].thisNodesManifest[posofManifestDataWriter].curr_Alt  = gps.altitude.meters();
-    //manifest[0].thisNodesManifest[posofManifestDataWriter].curr_Hour = gps.time.hour();
-    //manifest[0].thisNodesManifest[posofManifestDataWriter].curr_min  = gps.time.minute();
-    //manifest[0].thisNodesManifest[posofManifestDataWriter].curr_sec  = gps.time.second();
-
-    SerialUSB.print("TEST!!!!!!!!!!!!!LAT=");  SerialUSB.println(thisNodesManifest[posofManifestDataWriter].curr_Lat);
-    SerialUSB.print("TEST!!!!!!!!!!!!!inside the manifest LAT=");  SerialUSB.println(manifest[0].thisNodesManifest[0].curr_Lat);
-    
     //Update counters
-
-    //THESE WLL BE EDFUNCT AS SOON AS I FINISH THE QUEUE
     readingCounter = readingCounter + 1;
+    
+    //posofmanifest WLL BE EDFUNCT AS SOON AS I FINISH THE QUEUE
     posofManifestDataWriter = posofManifestDataWriter + 1;
 
     //If manifest is full, reset the counter to the top to delete the oldest reading NOTE: this list is now not sorted....
@@ -163,6 +132,12 @@ void loop()
       posofManifestDataWriter = 0;
     }
   }
+  //else
+  {
+  //  SerialUSB.println("Nothing coming in on serial. This means either there is nothing connected or nothing is communicating on that port....");
+  }
+
+      SerialUSB.print("DEBUG!!!!!!!!!!!!!Last readings LAT="); SerialUSB.println(front(aBookCalledManifest[0]).curr_Lat);
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// Step 2 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // START ACTIVITY 2
 
@@ -192,7 +167,7 @@ void loop()
   SerialUSB.println("Sent my manifest out successfully. ");
   digitalWrite(LED, LOW); //Turn off status LED
 
-  //END ACTIVITY 2?
+  //END ACTIVITY 2
   /////////////////////////////////////////////////////////////////////////////////////////End Step 2//////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// Step 3 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   //START ACTIVITY 3 - rec. others manifest and update mine.
@@ -205,7 +180,7 @@ void loop()
   uint8_t buf[sizeof(curr_info)];
   byte len = sizeof(buf);
 
-  if (rf95.waitAvailableTimeout(5000))//This will change to whatever I want the timeout interval to be. TODO
+  if (rf95.waitAvailableTimeout(25))//This will change to whatever I want the timeout interval to be. TODO
   {
     // Should be a reply message for us now
     if (rf95.recv(buf, &len)) {
