@@ -4,19 +4,26 @@
 #include <time.h>  
 
 #define LED 13  
-float frequency = 904.6;  
+//float frequency = 904.6;  //915?
+float frequency = 915.0;  //915?
+#define BATTERY_PIN A5  // Analog pin for battery voltage
+
 
 RH_RF95 rf95(12, 6);  
 TinyGPSPlus gps;
 static uint16_t curr_ID = (*(uint32_t*)0x0080A00C); 
 
 struct GPSData {
-    uint16_t senderID;
-    uint16_t nodeID;
+    float batteryLevel;
+    //uint16_t senderID;
+    //uint16_t nodeID;
+    int senderID;
+    int nodeID;
     float latitude;
     float longitude;
     float altitude;
-    uint32_t timestamp;  
+    //uint32_t timestamp;
+    int timestamp;
 };
 
 struct NodeHistory {
@@ -38,6 +45,11 @@ uint32_t convertToUnixTimestamp() {
         return mktime(&t);
     }
     return 0;
+}
+
+float readBatteryLevel() {
+    float raw = analogRead(BATTERY_PIN);  
+    return (raw / 1023.0) * 3.7 * 2;  // Convert to voltage (assuming a resistor divider)
 }
 
 void storePosition(GPSData newData) {
@@ -66,8 +78,14 @@ void setup() {
         while (1);
     }
 
+    
+    //rf95.setTxPower(23, false);
+    //TRYING NEW THINGS
+    //rf95.setModemConfig(RH_RF95::Bw125Cr48Sf4096);
+    //Thisworkedbeforeimessedwithit//rf95.setModemConfig(RH_RF95::Bw31_25Cr48Sf512);
+    rf95.setTxPower(20, false); // with false output is on PA_BOOST, power from 2 to 20 dBm, use this setting for high power demos/real usage
+    //END TYING NEW THINGS
     rf95.setFrequency(frequency);
-    rf95.setTxPower(23, false);
 
     SerialUSB.print("LoRa Mesh Node Initialized. ID: ");
     SerialUSB.println(curr_ID);
@@ -104,6 +122,7 @@ void loop() {
         GPSData gpsData;
         gpsData.senderID = curr_ID;
         gpsData.nodeID = curr_ID;
+        gpsData.batteryLevel = readBatteryLevel();  // Read battery level
 
         if (gpsValid) {
             gpsData.latitude = gps.location.lat();
@@ -128,9 +147,15 @@ void loop() {
         delay(100);
         digitalWrite(LED, LOW);
 
+        //SerialUSB.print("Sent GPS: Node ");
+        //SerialUSB.print(curr_ID);
+        //SerialUSB.print(" at ");
+        //SerialUSB.println(gpsData.timestamp);
         SerialUSB.print("Sent GPS: Node ");
         SerialUSB.print(curr_ID);
-        SerialUSB.print(" at ");
+        SerialUSB.print(" | Battery: ");
+        SerialUSB.print(gpsData.batteryLevel, 2);
+        SerialUSB.print("V | Time: ");
         SerialUSB.println(gpsData.timestamp);
     }
 

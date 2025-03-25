@@ -2,31 +2,37 @@
 #include <RH_RF95.h>
 
 #define LED 13  // Status LED
-float frequency = 904.6;
-
-RH_RF95 rf95(8, 3);  // LoRa radio on Feather M0
+//float frequency = 904.6;
+float frequency = 915.0;
+//RH_RF95 rf95(8, 3);  // LoRa radio on Feather M0
+//Note - for Feather M0 can use Serial, but for SAMD21 pro rf use SerialUSB
+RH_RF95 rf95(12, 6);  //RoRa radio on SAMD21 Pro RF
 
 struct GPSData {
-    uint16_t senderID;
-    uint16_t nodeID;
+    float batteryLevel;
+    //uint16_t senderID;
+    //uint16_t nodeID;
+    int senderID;
+    int nodeID;
     float latitude;
     float longitude;
     float altitude;
-    uint32_t timestamp;
+    //uint32_t timestamp;
+    int timestamp;
 };
 
 void setup() {
-    Serial.begin(9600);
+    SerialUSB.begin(9600);
     pinMode(LED, OUTPUT);
     
     if (!rf95.init()) {
-        Serial.println("LoRa init failed!");
+        SerialUSB.println("LoRa init failed!");
         while (1);
     }
 
     rf95.setFrequency(frequency);
-    rf95.setTxPower(23, false);
-    Serial.println("LoRa Gateway Initialized.");
+    //rf95.setTxPower(23, false);
+    SerialUSB.println("LoRa Gateway Initialized.");
 }
 
 void loop() {
@@ -34,17 +40,21 @@ void loop() {
         GPSData incoming;
         uint8_t len = sizeof(GPSData);
         if (rf95.recv((uint8_t*)&incoming, &len)) {
-            Serial.print("Received from Node ");
-            Serial.print(incoming.nodeID);
-            Serial.print(" | Lat: ");
-            Serial.print(incoming.latitude, 6);
-            Serial.print(" | Lon: ");
-            Serial.print(incoming.longitude, 6);
-            Serial.print(" | Alt: ");
-            Serial.print(incoming.altitude);
-            Serial.print(" | Time: ");
-            Serial.println(incoming.timestamp);
-
+            SerialUSB.print("Received from Node ");
+            SerialUSB.print(incoming.nodeID);
+            SerialUSB.print(" | Lat: ");
+            SerialUSB.print(incoming.latitude, 6);
+            SerialUSB.print(" | Lon: ");
+            SerialUSB.print(incoming.longitude, 6);
+            SerialUSB.print(" | Alt: ");
+            SerialUSB.print(incoming.altitude);
+            SerialUSB.print(" | Time: ");
+            SerialUSB.print(incoming.timestamp);
+            SerialUSB.print(" | Batt: ");
+            SerialUSB.println(incoming.batteryLevel);
+            //SerialUSB.print(" | rawData: ");
+            //SerialUSB.println(incoming);
+            
             digitalWrite(LED, HIGH);
             delay(100);
             digitalWrite(LED, LOW);
